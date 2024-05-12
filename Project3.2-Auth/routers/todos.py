@@ -1,5 +1,5 @@
 # fastapienv\Scripts\activate.bat
-# cd Project3.1-Auth
+# cd Project3.2-Auth
 # uvicorn main:app --reload
 # run this to create the databae
 from typing import Annotated
