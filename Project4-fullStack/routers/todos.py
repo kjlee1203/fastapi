@@ -6,18 +6,20 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Form
 from starlette import status
+from starlette.responses import RedirectResponse
 
 
-from models import Todos
+# from models import Todos
+import models
 from database import SessionLocal
 from .auth import get_current_user
 
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-router = APIRouter()
+router = APIRouter(prefix="/todos", tags=["todos"])
 templates = Jinja2Templates(directory="templates")
 
 
@@ -29,131 +31,37 @@ def get_db():
         db.close()  # close the database connection after using
 
 
-db_dependency = Annotated[Session, Depends(get_db)]
-user_dependency = Annotated[dict, Depends(get_current_user)]
+@router.get("/", response_class=HTMLResponse)
+async def read_all_by_user(request: Request, db: Session = Depends(get_db)):
+    todos = db.query(models.Todos.owner_id == 1).all()
+    return templates.TemplateResponse("home.html", {"request": request, "todos": todos})
 
 
-# pydantic
-# this class will be used for adding new todos (POST request)
-# or updating existing todos (PUT request)
-class TodoRequest(BaseModel):
-    # don't need id
-    title: str = Field(min_length=3)
-    description: str = Field(min_length=3, max_length=100)
-    priority: int = Field(gt=0, lt=6)
-    completed: bool
+@router.get("/add-todo", response_class=HTMLResponse)
+async def add_new_todo(request: Request):
+    return templates.TemplateResponse("add-todo.html", {"request": request})
 
 
-################################################################
-# GET
-
-
-@router.get("/todo/test")
-async def test(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
-
-
-@router.get("/", status_code=status.HTTP_200_OK)
-# dependency injection
-async def read_all(user: user_dependency, db: db_dependency):
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    # get all todos of one user
-    return db.query(Todos).filter(Todos.owner_id == user.get("id")).all()
-
-
-@router.get("/todo/{todo_id}", status_code=status.HTTP_200_OK)  # path parameter
-# status_code=status.HTTP_200_OK is optional, but to be explicit
-async def read_todo(
-    user: user_dependency, db: db_dependency, todo_id: int = Path(gt=0)
-):  # validation. id must be greater than 0
-
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    todo_model = (
-        db.query(Todos)
-        .filter(Todos.id == todo_id)
-        .filter(Todos.owner_id == user.get("id"))
-        .first()
-    )
-    # .first(): to save time. We know there is only one row with this id
-
-    if todo_model is not None:
-        return todo_model
-    raise HTTPException(status_code=404, detail="Todo not found")
-
-
-################################################################
-# POST
-@router.post("/todo", status_code=status.HTTP_201_CREATED)
+@router.post("/add-todo", response_class=HTMLResponse)
 async def create_todo(
-    user: user_dependency, db: db_dependency, todo_request: TodoRequest
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(...),
+    priority: int = Form(...),
+    db: Session = Depends(get_db),
 ):
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    todo_model = Todos(**todo_request.dict(), owner_id=user.get("id"))
-
-    db.add(todo_model)  # getting ready
-    db.commit()  # actually adding to the database
-
-
-################################################################
-# PUT
-@router.put("/todo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def update_todo(
-    user: user_dependency,
-    db: db_dependency,
-    todo_request: TodoRequest,
-    todo_id: int = Path(gt=0),
-):
-    # (db: db_dependency, todo_id: int = Path(gt=0), todo_request: TodoRequest)
-    # causes an error because todo_request has to come befor the path parameter
-
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    # get the todo with the id
-    todo_model = (
-        db.query(Todos)
-        .filter(Todos.id == todo_id)
-        .filter(Todos.owner_id == user.get("id"))
-        .first()
-    )
-    if todo_model is None:
-        raise HTTPException(status_code=404, detail="Todo not found")
-
-    todo_model.title = todo_request.title
-    todo_model.description = todo_request.description
-    todo_model.priority = todo_request.priority
-    todo_model.completed = todo_request.completed
-
+    todo_model = models.Todos()
+    todo_model.title = models.Todos()
+    todo_model.title = title
+    todo_model.description = description
+    todo_model.priority = priority
+    todo_model.completed = False
+    todo_model.owner_id = 1
     db.add(todo_model)
     db.commit()
+    return RedirectResponse(url="/todos", status_code=status.HTTP_302_FOUND)
 
 
-################################################################
-# DELETE
-@router.delete("/todo/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_todo(
-    user: user_dependency, db: db_dependency, todo_id: int = Path(gt=0)
-):
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-    # get the todo with the id
-    todo_model = (
-        db.query(Todos)
-        .filter(Todos.id == todo_id)
-        .filter(Todos.owner_id == user.get("id"))
-        .first()
-    )
-    if todo_model is None:
-        raise HTTPException(status_code=404, detail="Todo not found")
-
-    db.query(Todos).filter(Todos.id == todo_id).filter(
-        Todos.owner_id == user.get("id")
-    ).delete()
-    db.commit()
+@router.get("/edit-todo/{todo_id}", response_class=HTMLResponse)
+async def edit_todo(request: Request):
+    return templates.TemplateResponse("edit-todo.html", {"request": request})

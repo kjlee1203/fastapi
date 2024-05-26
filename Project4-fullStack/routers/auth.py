@@ -4,7 +4,7 @@
 # run this to create the databae
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import SessionLocal
@@ -16,7 +16,11 @@ from jose import jwt, JWTError
 from datetime import timedelta, datetime
 
 
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
 router = APIRouter(prefix="/auth", tags=["auth"])  # for categorization in the docs
+templates = Jinja2Templates(directory="templates")
 
 # for jwt
 SECRET_KEY = "1234567890abcdefghij"
@@ -131,3 +135,13 @@ async def login_for_access_token(
     )
 
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.get("/", response_class=HTMLResponse)
+async def authenticationpage(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@router.get("/register", response_class=HTMLResponse)
+async def register(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
