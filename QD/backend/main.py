@@ -63,22 +63,22 @@ def get_data(ticker):
     return current_price, pct_change, up
 
 
-# get_data("NVDA")
+def get_watchlist():
 
-# def get_db():
-#     db = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()  # close the database connection after using
+    url = "https://paper-api.alpaca.markets/v2/watchlists:by_name?name=my_watchlist"
+
+    headers = {
+        "accept": "application/json",
+        "APCA-API-KEY-ID": "PKPUP50BSE5HXH56A1G8",
+        "APCA-API-SECRET-KEY": "Fre2uD7RGUiYWiik0CDnfzLs8YDV1ydnqxcGE0X2",
+    }
+
+    response = requests.get(url, headers=headers)
+
+    stock_list = [item["symbol"] for item in response.json()["assets"]]
+    return stock_list
 
 
-# db_dependency = Annotated[Session, Depends(get_db)]
-
-
-# pydantic
-# this class will be used for adding new todos (POST request)
-# or updating existing todos (PUT request)
 class StockData(BaseModel):
 
     companyName: str
@@ -92,9 +92,41 @@ class StockData(BaseModel):
 
 ################################################################
 # GET
+
+
+@app.get("/data/getall", status_code=status.HTTP_200_OK)
+async def all_stocks():
+    watchlist = get_watchlist()
+    stock_info_list = []
+
+    for idx, ticker in enumerate(watchlist):
+        stock_data = StockData(
+            companyName="",
+            ticker="",
+            priceChange="",
+            stockPrice="",
+            panelColor="",
+            priceChangeColor="",
+            img="",
+        )
+
+        color_list = ["#b6dedc", "#e1ccdb", "#edb4bd", "#ffe5a5"]
+        selected_color = color_list[idx % 4]
+
+        current_price, pct_change, up = get_data(ticker)
+        stock_data.companyName = yf.Ticker(ticker).info["longName"]
+        stock_data.ticker = ticker
+        stock_data.stockPrice = current_price
+        stock_data.priceChange = pct_change
+        stock_data.panelColor = selected_color
+        stock_data.priceChangeColor = "#77b900" if up else "#ff2f2f"
+        stock_data.img = f"https://raw.githubusercontent.com/davidepalazzo/ticker-logos/main/ticker_icons/{ticker}.png"
+        stock_info_list.append(stock_data)
+    return stock_info_list
+
+
 @app.get("/data/{ticker}", status_code=status.HTTP_200_OK)
-# dependency injection
-async def read_all(ticker: str):
+async def one_stock(ticker: str):
     stock_data = StockData(
         companyName="",
         ticker="",
@@ -119,6 +151,9 @@ async def read_all(ticker: str):
     return stock_data
     # return {"current_price": current_price, "pct_change": pct_change}
     # return ticker
+
+
+# @app.get("/acc", status_code=status.HTTP_200_OK)
 
 
 """
