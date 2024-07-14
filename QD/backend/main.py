@@ -18,6 +18,8 @@ import yfinance as yf
 from pprint import pprint
 import requests
 import numpy as np
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+
 
 app = FastAPI()
 
@@ -34,6 +36,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 ###########################
+
+#########################
+# login
+# Example database (replace with your actual user database)
+users_db = {
+    "aaa": {
+        "username": "aaa",
+        "full_name": "User One",
+        "email": "user1@example.com",
+        "password": "aaa",
+    },
+    "bbb": {
+        "username": "bbb",
+        "full_name": "User Two",
+        "email": "user2@example.com",
+        "password": "bbb",
+    },
+}
+
+
+# User model
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/login", status_code=status.HTTP_200_OK)
+# def login(form_data: OAuth2PasswordRequestForm = Depends()):
+# def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(user: UserLogin):
+    username = user.username
+    password = user.password
+
+    # Verify username and password (replace with your authentication logic)
+    if username not in users_db:
+        raise HTTPException(status_code=400, detail="Incorrect username")
+
+    user = users_db[username]
+    if (
+        password != user["password"]
+    ):  # Replace with actual password hashing and verification
+        raise HTTPException(status_code=400, detail="Incorrect password")
+
+    return {
+        "username": username,
+        "full_name": user["full_name"],
+        "email": user["email"],
+    }
+
+
+########################################################
 
 
 def get_data(ticker):
